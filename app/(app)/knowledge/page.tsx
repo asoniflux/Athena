@@ -1,10 +1,22 @@
-import { BookOpen, Plus, Search, ChevronRight, FileText, Sparkles } from 'lucide-react'
+import { BookOpen, Sparkles } from 'lucide-react'
+import { auth } from '@/lib/auth'
+import { redirect } from 'next/navigation'
+import { getPages } from '@/app/actions/page.actions'
+import KnowledgeView from './knowledge-view'
 
-export default function KnowledgePage() {
+export default async function KnowledgePage() {
+  const session = await auth()
+  if (!session?.user?.id) {
+    redirect('/login')
+  }
+
+  const result = await getPages()
+  const pages = result.success ? (result.data as Array<Record<string, unknown>>) : []
+
   return (
-    <div className="space-y-6 p-6">
+    <div className="flex h-full flex-col p-6">
       {/* Header */}
-      <div className="flex items-start justify-between">
+      <div className="mb-4 flex items-start justify-between">
         <div className="flex items-center gap-3">
           <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#6366F1]/10">
             <BookOpen className="h-5 w-5 text-[#6366F1]" />
@@ -16,70 +28,22 @@ export default function KnowledgePage() {
             </p>
           </div>
         </div>
-        <button className="flex items-center gap-2 rounded-lg bg-[#6366F1] px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-[#5558E3]">
-          <Plus className="h-4 w-4" />
-          New Page
-        </button>
       </div>
 
-      {/* Search */}
-      <div className="flex items-center gap-2 rounded-lg border border-[#2D2D3A] bg-[#1A1A24] px-3 py-2">
-        <Search className="h-4 w-4 text-[#6B7280]" />
-        <span className="text-sm text-[#6B7280]">Search knowledge base...</span>
-      </div>
-
-      <div className="grid gap-6 lg:grid-cols-[280px_1fr]">
-        {/* Page Tree Sidebar */}
-        <div className="rounded-xl border border-[#2D2D3A] bg-[#1A1A24] p-4">
-          <h3 className="mb-3 text-xs font-medium uppercase tracking-wider text-[#6B7280]">
-            Pages
-          </h3>
-
-          {/* Empty Page Tree */}
-          <div className="space-y-1">
-            <div className="flex items-center gap-2 rounded-lg px-2 py-1.5 text-[#6B7280]">
-              <ChevronRight className="h-3 w-3" />
-              <FileText className="h-4 w-4" />
-              <span className="text-sm italic">No pages yet</span>
-            </div>
-          </div>
-
-          <div className="mt-4 border-t border-[#2D2D3A] pt-4">
-            <button className="flex w-full items-center justify-center gap-2 rounded-lg border border-dashed border-[#2D2D3A] py-2 text-sm text-[#6B7280] transition-colors hover:border-[#6366F1]/50 hover:text-[#9CA3AF]">
-              <Plus className="h-4 w-4" />
-              Add Page
-            </button>
-          </div>
-        </div>
-
-        {/* Main Content Area */}
-        <div className="rounded-xl border border-[#2D2D3A] bg-[#1A1A24] p-8">
-          <div className="flex flex-col items-center justify-center py-12 text-center">
-            <BookOpen className="mb-4 h-12 w-12 text-[#6B7280]" />
-            <h3 className="mb-2 text-lg font-medium text-[#F1F1F3]">
-              Start Your Knowledge Base
-            </h3>
-            <p className="mb-6 max-w-md text-sm text-[#6B7280]">
-              Create pages to organize your notes, research, and documentation.
-              Pages support rich text, code blocks, and nested sub-pages.
-            </p>
-            <button className="flex items-center gap-2 rounded-lg bg-[#6366F1] px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-[#5558E3]">
-              <Plus className="h-4 w-4" />
-              Create Your First Page
-            </button>
-          </div>
-        </div>
-      </div>
-
-      {/* AI Feature Banner */}
-      <div className="rounded-lg border border-[#6366F1]/20 bg-[#6366F1]/5 px-4 py-3">
+      {/* AI Feature Banner - Compact */}
+      <div className="mb-4 rounded-lg border border-[#6366F1]/20 bg-[#6366F1]/5 px-3 py-2">
         <div className="flex items-center gap-2">
-          <Sparkles className="h-4 w-4 text-[#6366F1]" />
-          <p className="text-sm text-[#9CA3AF]">
+          <Sparkles className="h-3.5 w-3.5 text-[#6366F1]" />
+          <p className="text-xs text-[#9CA3AF]">
             <span className="font-medium text-[#6366F1]">AI Knowledge Assistant</span>{' '}
             &mdash; Semantic search, auto-linking, and AI-generated summaries coming soon.
           </p>
         </div>
+      </div>
+
+      {/* Knowledge View */}
+      <div className="flex-1 min-h-0">
+        <KnowledgeView initialPages={pages as never[]} />
       </div>
     </div>
   )
