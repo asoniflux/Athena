@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import { signIn } from 'next-auth/react'
 import { useRouter } from 'next/navigation'
-import { Sparkles, Eye, EyeOff, Loader2 } from 'lucide-react'
+import { Sparkles, Eye, EyeOff, Loader2, UserCircle } from 'lucide-react'
 
 export default function LoginPage() {
   const router = useRouter()
@@ -12,6 +12,7 @@ export default function LoginPage() {
   const [showPassword, setShowPassword] = useState(false)
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
+  const [guestLoading, setGuestLoading] = useState(false)
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -107,7 +108,54 @@ export default function LoginPage() {
           </button>
         </form>
 
-        <p className="mt-6 text-center text-xs text-[#6B7280]">
+        <div className="mt-4 flex items-center gap-3">
+          <div className="h-px flex-1 bg-[#2D2D3A]" />
+          <span className="text-xs text-[#6B7280]">or</span>
+          <div className="h-px flex-1 bg-[#2D2D3A]" />
+        </div>
+
+        <button
+          type="button"
+          disabled={guestLoading || loading}
+          onClick={async () => {
+            setGuestLoading(true)
+            setError('')
+            try {
+              const res = await fetch('/api/auth/guest', { method: 'POST' })
+              if (!res.ok) throw new Error('Failed to create guest account')
+              const { email: guestEmail, password: guestPass } = await res.json()
+              const result = await signIn('credentials', {
+                email: guestEmail,
+                password: guestPass,
+                redirect: false,
+              })
+              if (result?.error) {
+                setError('Guest login failed')
+                setGuestLoading(false)
+              } else {
+                router.push('/dashboard')
+              }
+            } catch {
+              setError('Guest login failed')
+              setGuestLoading(false)
+            }
+          }}
+          className="mt-3 flex w-full items-center justify-center gap-2 rounded-lg border border-[#2D2D3A] bg-[#1A1A24] px-4 py-2.5 text-sm font-medium text-[#9CA3AF] transition hover:border-[#6366F1] hover:text-[#F1F1F3] disabled:opacity-50"
+        >
+          {guestLoading ? (
+            <>
+              <Loader2 className="h-4 w-4 animate-spin" />
+              Entering as guest...
+            </>
+          ) : (
+            <>
+              <UserCircle className="h-4 w-4" />
+              Continue as Guest
+            </>
+          )}
+        </button>
+
+        <p className="mt-4 text-center text-xs text-[#6B7280]">
           First time? <a href="/setup" className="text-[#6366F1] hover:underline">Set up your account</a>
         </p>
       </div>

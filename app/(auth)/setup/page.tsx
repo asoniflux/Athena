@@ -2,13 +2,15 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { Sparkles, Loader2, Check } from 'lucide-react'
+import { signIn } from 'next-auth/react'
+import { Sparkles, Loader2, Check, UserCircle } from 'lucide-react'
 
 export default function SetupPage() {
   const router = useRouter()
   const [step, setStep] = useState(1)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+  const [guestLoading, setGuestLoading] = useState(false)
 
   const [name, setName] = useState('')
   const [email, setEmail] = useState('')
@@ -216,9 +218,58 @@ export default function SetupPage() {
         )}
 
         {step !== 3 && (
-          <p className="mt-6 text-center text-xs text-[#6B7280]">
-            Already have an account? <a href="/login" className="text-[#6366F1] hover:underline">Sign in</a>
-          </p>
+          <>
+            <div className="mt-4 flex items-center gap-3">
+              <div className="h-px flex-1 bg-[#2D2D3A]" />
+              <span className="text-xs text-[#6B7280]">or</span>
+              <div className="h-px flex-1 bg-[#2D2D3A]" />
+            </div>
+
+            <button
+              type="button"
+              disabled={guestLoading || loading}
+              onClick={async () => {
+                setGuestLoading(true)
+                setError('')
+                try {
+                  const res = await fetch('/api/auth/guest', { method: 'POST' })
+                  if (!res.ok) throw new Error('Failed')
+                  const { email: guestEmail, password: guestPass } = await res.json()
+                  const result = await signIn('credentials', {
+                    email: guestEmail,
+                    password: guestPass,
+                    redirect: false,
+                  })
+                  if (result?.error) {
+                    setError('Guest login failed')
+                    setGuestLoading(false)
+                  } else {
+                    router.push('/dashboard')
+                  }
+                } catch {
+                  setError('Guest login failed')
+                  setGuestLoading(false)
+                }
+              }}
+              className="mt-3 flex w-full items-center justify-center gap-2 rounded-lg border border-[#2D2D3A] bg-[#1A1A24] px-4 py-2.5 text-sm font-medium text-[#9CA3AF] transition hover:border-[#6366F1] hover:text-[#F1F1F3] disabled:opacity-50"
+            >
+              {guestLoading ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  Entering as guest...
+                </>
+              ) : (
+                <>
+                  <UserCircle className="h-4 w-4" />
+                  Skip Setup — Continue as Guest
+                </>
+              )}
+            </button>
+
+            <p className="mt-4 text-center text-xs text-[#6B7280]">
+              Already have an account? <a href="/login" className="text-[#6366F1] hover:underline">Sign in</a>
+            </p>
+          </>
         )}
       </div>
     </div>
