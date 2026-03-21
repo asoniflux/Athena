@@ -1,0 +1,575 @@
+generator client {
+  provider        = "prisma-client-js"
+  previewFeatures = ["postgresqlExtensions"]
+}
+
+datasource db {
+  provider   = "postgresql"
+  url        = env("DATABASE_URL")
+  extensions = [pgvector(map: "vector", schema: "public")]
+}
+
+// ─── AUTH ───────────────────────────────────
+model User {
+  id             String    @id @default(cuid())
+  name           String
+  email          String    @unique
+  hashedPassword String    @map("hashed_password")
+  avatar         String?
+  timezone       String    @default("Asia/Kolkata")
+  preferences    Json      @default("{}")
+  createdAt      DateTime  @default(now()) @map("created_at")
+  updatedAt      DateTime  @updatedAt @map("updated_at")
+
+  projects       Project[]
+  tasks          Task[]
+  calendarEvents CalendarEvent[]
+  pages          Page[]
+  files          File[]
+  contentPieces  ContentPiece[]
+  ideas          Idea[]
+  habits         Habit[]
+  conversations  ChatConversation[]
+  productions    Production[]
+  activityLogs   ActivityLog[]
+  moodLogs       MoodLog[]
+
+  @@map("users")
+}
+
+// ─── TASKS & PROJECTS ───────────────────────
+model Project {
+  id          String        @id @default(cuid())
+  userId      String        @map("user_id")
+  name        String
+  description String?
+  color       String        @default("#6366F1")
+  icon        String        @default("folder")
+  status      ProjectStatus @default(ACTIVE)
+  deletedAt   DateTime?     @map("deleted_at")
+  createdAt   DateTime      @default(now()) @map("created_at")
+  updatedAt   DateTime      @updatedAt @map("updated_at")
+
+  user  User   @relation(fields: [userId], references: [id])
+  tasks Task[]
+
+  @@index([userId])
+  @@map("projects")
+}
+
+enum ProjectStatus {
+  ACTIVE
+  ARCHIVED
+  COMPLETED
+}
+
+model Task {
+  id               String     @id @default(cuid())
+  userId           String     @map("user_id")
+  projectId        String?    @map("project_id")
+  parentTaskId     String?    @map("parent_task_id")
+  title            String
+  description      Json?
+  status           TaskStatus @default(BACKLOG)
+  priority         Priority   @default(P3)
+  dueDate          DateTime?  @map("due_date")
+  estimatedMinutes Int?       @map("estimated_minutes")
+  actualMinutes    Int?       @map("actual_minutes")
+  tags             String[]   @default([])
+  position         Float      @default(0)
+  recurrenceRule   String?    @map("recurrence_rule")
+  aiPriorityScore  Float?     @map("ai_priority_score")
+  embedding        Unsupported("vector(768)")?
+  deletedAt        DateTime?  @map("deleted_at")
+  createdAt        DateTime   @default(now()) @map("created_at")
+  updatedAt        DateTime   @updatedAt @map("updated_at")
+
+  user       User     @relation(fields: [userId], references: [id])
+  project    Project? @relation(fields: [projectId], references: [id])
+  parentTask Task?    @relation("Subtasks", fields: [parentTaskId], references: [id])
+  subtasks   Task[]   @relation("Subtasks")
+
+  @@index([userId])
+  @@index([projectId])
+  @@index([status])
+  @@index([dueDate])
+  @@index([deletedAt])
+  @@map("tasks")
+}
+
+enum TaskStatus {
+  BACKLOG
+  TODO
+  IN_PROGRESS
+  REVIEW
+  DONE
+}
+
+enum Priority {
+  P1
+  P2
+  P3
+  P4
+}
+
+// ─── CALENDAR ───────────────────────────────
+model CalendarEvent {
+  id             String        @id @default(cuid())
+  userId         String        @map("user_id")
+  title          String
+  description    String?
+  startTime      DateTime      @map("start_time")
+  endTime        DateTime      @map("end_time")
+  allDay         Boolean       @default(false) @map("all_day")
+  category       EventCategory @default(MEETING)
+  color          String?
+  location       String?
+  meetingLink    String?       @map("meeting_link")
+  googleEventId  String?       @unique @map("google_event_id")
+  recurrenceRule String?       @map("recurrence_rule")
+  reminders      Json?
+  notes          Json?
+  deletedAt      DateTime?     @map("deleted_at")
+  createdAt      DateTime      @default(now()) @map("created_at")
+  updatedAt      DateTime      @updatedAt @map("updated_at")
+
+  user User @relation(fields: [userId], references: [id])
+
+  @@index([userId])
+  @@index([startTime])
+  @@index([googleEventId])
+  @@map("calendar_events")
+}
+
+enum EventCategory {
+  MEETING
+  DEEP_WORK
+  PERSONAL
+  CONTENT
+  ADMIN
+  HEALTH
+  SOCIAL
+}
+
+// ─── KNOWLEDGE BASE ─────────────────────────
+model Page {
+  id          String    @id @default(cuid())
+  userId      String    @map("user_id")
+  parentId    String?   @map("parent_id")
+  title       String
+  icon        String?
+  coverImage  String?   @map("cover_image")
+  content     Json?
+  contentText String?   @map("content_text")
+  tags        String[]  @default([])
+  isTemplate  Boolean   @default(false) @map("is_template")
+  isFavorite  Boolean   @default(false) @map("is_favorite")
+  aiSummary   String?   @map("ai_summary")
+  embedding   Unsupported("vector(768)")?
+  position    Float     @default(0)
+  version     Int       @default(1)
+  deletedAt   DateTime? @map("deleted_at")
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
+
+  user     User          @relation(fields: [userId], references: [id])
+  parent   Page?         @relation("PageTree", fields: [parentId], references: [id])
+  children Page[]        @relation("PageTree")
+  versions PageVersion[]
+
+  @@index([userId])
+  @@index([parentId])
+  @@index([deletedAt])
+  @@map("pages")
+}
+
+model PageVersion {
+  id        String   @id @default(cuid())
+  pageId    String   @map("page_id")
+  content   Json
+  version   Int
+  createdAt DateTime @default(now()) @map("created_at")
+
+  page Page @relation(fields: [pageId], references: [id])
+
+  @@index([pageId])
+  @@map("page_versions")
+}
+
+// ─── FILES ──────────────────────────────────
+model File {
+  id            String    @id @default(cuid())
+  userId        String    @map("user_id")
+  folderId      String?   @map("folder_id")
+  originalName  String    @map("original_name")
+  storagePath   String    @map("storage_path")
+  mimeType      String    @map("mime_type")
+  size          Int
+  tags          String[]  @default([])
+  extractedText String?   @map("extracted_text")
+  aiSummary     String?   @map("ai_summary")
+  aiKeyPoints   Json?     @map("ai_key_points")
+  isStarred     Boolean   @default(false) @map("is_starred")
+  processedAt   DateTime? @map("processed_at")
+  deletedAt     DateTime? @map("deleted_at")
+  createdAt     DateTime  @default(now()) @map("created_at")
+  updatedAt     DateTime  @updatedAt @map("updated_at")
+
+  user   User        @relation(fields: [userId], references: [id])
+  folder FileFolder? @relation(fields: [folderId], references: [id])
+  chunks FileChunk[]
+
+  @@index([userId])
+  @@index([folderId])
+  @@index([mimeType])
+  @@map("files")
+}
+
+model FileFolder {
+  id        String    @id @default(cuid())
+  parentId  String?   @map("parent_id")
+  name      String
+  color     String?
+  createdAt DateTime  @default(now()) @map("created_at")
+
+  parent   FileFolder?  @relation("FolderTree", fields: [parentId], references: [id])
+  children FileFolder[] @relation("FolderTree")
+  files    File[]
+
+  @@map("file_folders")
+}
+
+model FileChunk {
+  id         String @id @default(cuid())
+  fileId     String @map("file_id")
+  content    String
+  chunkIndex Int    @map("chunk_index")
+  embedding  Unsupported("vector(768)")?
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  file File @relation(fields: [fileId], references: [id], onDelete: Cascade)
+
+  @@index([fileId])
+  @@map("file_chunks")
+}
+
+// ─── CONTENT STUDIO ─────────────────────────
+model ContentPiece {
+  id          String          @id @default(cuid())
+  userId      String          @map("user_id")
+  title       String
+  platform    ContentPlatform
+  status      ContentStatus   @default(IDEA)
+  body        Json?
+  bodyText    String?         @map("body_text")
+  tags        String[]        @default([])
+  publishDate DateTime?       @map("publish_date")
+  publishedUrl String?        @map("published_url")
+  metadata    Json?
+  aiGenerated Boolean         @default(false) @map("ai_generated")
+  embedding   Unsupported("vector(768)")?
+  deletedAt   DateTime?       @map("deleted_at")
+  createdAt   DateTime        @default(now()) @map("created_at")
+  updatedAt   DateTime        @updatedAt @map("updated_at")
+
+  user   User           @relation(fields: [userId], references: [id])
+  drafts ContentDraft[]
+
+  @@index([userId])
+  @@index([platform])
+  @@index([status])
+  @@index([publishDate])
+  @@map("content_pieces")
+}
+
+model ContentDraft {
+  id             String   @id @default(cuid())
+  contentPieceId String   @map("content_piece_id")
+  body           Json
+  version        Int
+  notes          String?
+  createdAt      DateTime @default(now()) @map("created_at")
+
+  contentPiece ContentPiece @relation(fields: [contentPieceId], references: [id], onDelete: Cascade)
+
+  @@index([contentPieceId])
+  @@map("content_drafts")
+}
+
+enum ContentPlatform {
+  LINKEDIN
+  INSTAGRAM
+  YOUTUBE
+  BLOG
+  NEWSLETTER
+  TWITTER
+}
+
+enum ContentStatus {
+  IDEA
+  OUTLINE
+  DRAFT
+  EDIT
+  READY
+  PUBLISHED
+}
+
+// ─── IDEA LAB ───────────────────────────────
+model IdeaCollection {
+  id        String   @id @default(cuid())
+  name      String
+  color     String?
+  icon      String?
+  createdAt DateTime @default(now()) @map("created_at")
+
+  ideas Idea[]
+
+  @@map("idea_collections")
+}
+
+model Idea {
+  id               String     @id @default(cuid())
+  userId           String     @map("user_id")
+  collectionId     String?    @map("collection_id")
+  title            String
+  description      String?
+  category         String?
+  status           IdeaStatus @default(RAW)
+  impactRating     Int?       @map("impact_rating")
+  effortRating     Int?       @map("effort_rating")
+  excitementRating Int?       @map("excitement_rating")
+  tags             String[]   @default([])
+  aiExpansion      Json?      @map("ai_expansion")
+  embedding        Unsupported("vector(768)")?
+  deletedAt        DateTime?  @map("deleted_at")
+  createdAt        DateTime   @default(now()) @map("created_at")
+  updatedAt        DateTime   @updatedAt @map("updated_at")
+
+  user       User            @relation(fields: [userId], references: [id])
+  collection IdeaCollection? @relation(fields: [collectionId], references: [id])
+
+  @@index([userId])
+  @@index([status])
+  @@map("ideas")
+}
+
+enum IdeaStatus {
+  RAW
+  EXPLORING
+  VALIDATED
+  ARCHIVED
+}
+
+// ─── HABITS ─────────────────────────────────
+model Habit {
+  id         String         @id @default(cuid())
+  userId     String         @map("user_id")
+  name       String
+  icon       String?
+  color      String?
+  category   HabitCategory  @default(PRODUCTIVITY)
+  frequency  HabitFrequency @default(DAILY)
+  targetDays Int[]          @default([]) @map("target_days")
+  targetValue Float?        @map("target_value")
+  unit       String?
+  isActive   Boolean        @default(true) @map("is_active")
+  position   Float          @default(0)
+  createdAt  DateTime       @default(now()) @map("created_at")
+  updatedAt  DateTime       @updatedAt @map("updated_at")
+
+  user User       @relation(fields: [userId], references: [id])
+  logs HabitLog[]
+
+  @@index([userId])
+  @@map("habits")
+}
+
+model HabitLog {
+  id        String   @id @default(cuid())
+  habitId   String   @map("habit_id")
+  date      DateTime @db.Date
+  completed Boolean  @default(false)
+  value     Float?
+  notes     String?
+  createdAt DateTime @default(now()) @map("created_at")
+
+  habit Habit @relation(fields: [habitId], references: [id], onDelete: Cascade)
+
+  @@unique([habitId, date])
+  @@index([habitId])
+  @@index([date])
+  @@map("habit_logs")
+}
+
+enum HabitCategory {
+  HEALTH
+  PRODUCTIVITY
+  LEARNING
+  MINDFULNESS
+  BUSINESS
+  SOCIAL
+  CREATIVE
+}
+
+enum HabitFrequency {
+  DAILY
+  SPECIFIC_DAYS
+  X_PER_WEEK
+}
+
+model MoodLog {
+  id        String   @id @default(cuid())
+  userId    String   @map("user_id")
+  date      DateTime @db.Date @unique
+  mood      Int
+  energy    Int
+  focus     Int
+  journal   String?
+  createdAt DateTime @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id])
+
+  @@index([userId])
+  @@index([date])
+  @@map("mood_logs")
+}
+
+// ─── AI CHAT ────────────────────────────────
+model ChatConversation {
+  id        String    @id @default(cuid())
+  userId    String    @map("user_id")
+  title     String
+  context   String?
+  isStarred Boolean   @default(false) @map("is_starred")
+  deletedAt DateTime? @map("deleted_at")
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+
+  user     User          @relation(fields: [userId], references: [id])
+  messages ChatMessage[]
+
+  @@index([userId])
+  @@map("chat_conversations")
+}
+
+model ChatMessage {
+  id             String   @id @default(cuid())
+  conversationId String   @map("conversation_id")
+  role           ChatRole
+  content        String
+  model          String?
+  tokenCount     Int?     @map("token_count")
+  attachments    Json?
+  createdAt      DateTime @default(now()) @map("created_at")
+
+  conversation ChatConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+
+  @@index([conversationId])
+  @@map("chat_messages")
+}
+
+enum ChatRole {
+  USER
+  ASSISTANT
+  SYSTEM
+}
+
+model PromptTemplate {
+  id            String   @id @default(cuid())
+  name          String
+  description   String?
+  category      String
+  prompt        String
+  variables     Json?
+  exampleOutput String?  @map("example_output")
+  isFavorite    Boolean  @default(false) @map("is_favorite")
+  useCount      Int      @default(0) @map("use_count")
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+
+  @@map("prompt_templates")
+}
+
+// ─── MEDIA PRODUCTION ───────────────────────
+model Production {
+  id          String           @id @default(cuid())
+  userId      String           @map("user_id")
+  title       String
+  description String?
+  platform    ContentPlatform?
+  status      ProductionStatus @default(CONCEPT)
+  script      Json?
+  equipment   Json?
+  notes       String?
+  deletedAt   DateTime?        @map("deleted_at")
+  createdAt   DateTime         @default(now()) @map("created_at")
+  updatedAt   DateTime         @updatedAt @map("updated_at")
+
+  user  User   @relation(fields: [userId], references: [id])
+  shots Shot[]
+
+  @@index([userId])
+  @@map("productions")
+}
+
+model Shot {
+  id           String   @id @default(cuid())
+  productionId String   @map("production_id")
+  shotType     String   @map("shot_type")
+  description  String
+  cameraAngle  String?  @map("camera_angle")
+  cameraMove   String?  @map("camera_move")
+  lighting     String?
+  duration     Int?
+  position     Float    @default(0)
+  notes        String?
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  production Production @relation(fields: [productionId], references: [id], onDelete: Cascade)
+
+  @@index([productionId])
+  @@map("shots")
+}
+
+enum ProductionStatus {
+  CONCEPT
+  SCRIPT
+  PRE_PRODUCTION
+  SHOOT
+  EDIT
+  PUBLISHED
+}
+
+// ─── ACTIVITY LOG ───────────────────────────
+model ActivityLog {
+  id          String   @id @default(cuid())
+  userId      String   @map("user_id")
+  action      String
+  entityType  String   @map("entity_type")
+  entityId    String   @map("entity_id")
+  entityTitle String?  @map("entity_title")
+  metadata    Json?
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id])
+
+  @@index([userId])
+  @@index([entityType, entityId])
+  @@index([createdAt])
+  @@map("activity_logs")
+}
+
+// ─── GOOGLE CALENDAR SYNC ───────────────────
+model GoogleCalendarSync {
+  id           String    @id @default(cuid())
+  accessToken  String    @map("access_token")
+  refreshToken String    @map("refresh_token")
+  expiresAt    DateTime  @map("expires_at")
+  calendarId   String    @default("primary") @map("calendar_id")
+  syncToken    String?   @map("sync_token")
+  lastSyncAt   DateTime? @map("last_sync_at")
+  createdAt    DateTime  @default(now()) @map("created_at")
+  updatedAt    DateTime  @updatedAt @map("updated_at")
+
+  @@map("google_calendar_sync")
+}

@@ -1,0 +1,42 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: pgvector/pgvector:pg16
+    container_name: athena-postgres-dev
+    ports:
+      - "5432:5432"
+    environment:
+      - POSTGRES_DB=nexus_db
+      - POSTGRES_USER=nexus
+      - POSTGRES_PASSWORD=nexus_dev_password
+    volumes:
+      - pgdata_dev:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U nexus -d nexus_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    container_name: athena-redis-dev
+    ports:
+      - "6379:6379"
+    command: redis-server --maxmemory 256mb --maxmemory-policy allkeys-lru
+
+  ollama:
+    image: ollama/ollama:latest
+    container_name: athena-ollama-dev
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama_models_dev:/root/.ollama
+    deploy:
+      resources:
+        limits:
+          memory: 10G
+
+volumes:
+  pgdata_dev:
+  ollama_models_dev:

@@ -1,0 +1,120 @@
+version: '3.8'
+
+services:
+  app:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+    container_name: athena-app
+    restart: unless-stopped
+    environment:
+      - DATABASE_URL=postgresql://nexus:${DB_PASSWORD}@postgres:5432/nexus_db
+      - REDIS_URL=redis://redis:6379
+      - OLLAMA_URL=http://ollama:11434
+      - NEXTAUTH_URL=https://${DOMAIN}
+      - NEXTAUTH_SECRET=${NEXTAUTH_SECRET}
+      - NODE_ENV=production
+    volumes:
+      - uploads:/app/data/uploads
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      ollama:
+        condition: service_started
+    networks:
+      - athena-net
+
+  worker:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+    container_name: athena-worker
+    restart: unless-stopped
+    command: node workers/index.js
+    environment:
+      - DATABASE_URL=postgresql://nexus:${DB_PASSWORD}@postgres:5432/nexus_db
+      - REDIS_URL=redis://redis:6379
+      - OLLAMA_URL=http://ollama:11434
+      - NODE_ENV=production
+    volumes:
+      - uploads:/app/data/uploads
+    depends_on:
+      - app
+    networks:
+      - athena-net
+
+  postgres:
+    image: pgvector/pgvector:pg16
+    container_name: athena-postgres
+    restart: unless-stopped
+    environment:
+      - POSTGRES_DB=nexus_db
+      - POSTGRES_USER=nexus
+      - POSTGRES_PASSWORD=${DB_PASSWORD}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U nexus -d nexus_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - athena-net
+
+  redis:
+    image: redis:7-alpine
+    container_name: athena-redis
+    restart: unless-stopped
+    command: redis-server --maxmemory 512mb --maxmemory-policy allkeys-lru
+    volumes:
+      - redisdata:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - athena-net
+
+  ollama:
+    image: ollama/ollama:latest
+    container_name: athena-ollama
+    restart: unless-stopped
+    volumes:
+      - ollama_models:/root/.ollama
+    deploy:
+      resources:
+        limits:
+          memory: 10G
+    networks:
+      - athena-net
+
+  nginx:
+    image: nginx:alpine
+    container_name: athena-nginx
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./docker/nginx/conf.d:/etc/nginx/conf.d
+      - certbot_conf:/etc/letsencrypt
+      - certbot_www:/var/www/certbot
+    depends_on:
+      - app
+    networks:
+      - athena-net
+
+volumes:
+  pgdata:
+  redisdata:
+  ollama_models:
+  uploads:
+  certbot_conf:
+  certbot_www:
+
+networks:
+  athena-net:
+    driver: bridge
