@@ -5,6 +5,7 @@ import { Sidebar } from "@/components/layout/sidebar"
 import { Topbar } from "@/components/layout/topbar"
 import { CommandPalette } from "@/components/layout/command-palette"
 import { MobileNav } from "@/components/layout/mobile-nav"
+import { VoiceCommandButton } from "@/components/voice/voice-command-button"
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   const [commandPaletteOpen, setCommandPaletteOpen] = useState(false)
@@ -36,6 +37,9 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         open={commandPaletteOpen}
         onOpenChange={setCommandPaletteOpen}
       />
+
+      {/* Voice command button */}
+      <VoiceCommandButton />
     </div>
   )
 }
