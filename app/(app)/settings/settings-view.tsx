@@ -13,6 +13,7 @@ import {
   AlertCircle,
   CheckCircle2,
   XCircle,
+  Mic,
 } from 'lucide-react'
 import {
   getProfile,
@@ -77,6 +78,10 @@ export default function SettingsView() {
   const [profileSaving, setProfileSaving] = useState(false)
   const [profileMessage, setProfileMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
 
+  // Voice shortcut
+  const [voiceShortcut, setVoiceShortcut] = useState<string>('')
+  const [isRecordingShortcut, setIsRecordingShortcut] = useState(false)
+
   // Password form
   const [currentPassword, setCurrentPassword] = useState('')
   const [newPassword, setNewPassword] = useState('')
@@ -86,6 +91,9 @@ export default function SettingsView() {
 
   useEffect(() => {
     loadData()
+    // Load voice shortcut from localStorage
+    const saved = localStorage.getItem('athena-voice-shortcut')
+    setVoiceShortcut(saved || 'Ctrl+Shift+V')
   }, [])
 
   async function loadData() {
@@ -371,6 +379,101 @@ export default function SettingsView() {
                 />
               </div>
             )}
+          </div>
+        </SettingsSection>
+
+        {/* Voice Command Shortcut Section */}
+        <SettingsSection
+          icon={<Mic className="h-5 w-5" />}
+          title="Voice Command"
+          description="Customize the keyboard shortcut for voice commands"
+        >
+          <div className="space-y-4">
+            <div>
+              <label className="mb-1.5 block text-sm font-medium text-[#F1F1F3]">
+                Keyboard Shortcut
+              </label>
+              <p className="mb-3 text-xs text-[#6B7280]">
+                Click the box below and press your desired key combination to set a new shortcut.
+              </p>
+              <div className="flex items-center gap-3">
+                <button
+                  onClick={() => setIsRecordingShortcut(true)}
+                  onKeyDown={(e) => {
+                    if (!isRecordingShortcut) return
+                    e.preventDefault()
+                    e.stopPropagation()
+
+                    // Ignore lone modifier presses
+                    if (['Control', 'Shift', 'Alt', 'Meta'].includes(e.key)) return
+
+                    const parts: string[] = []
+                    if (e.ctrlKey || e.metaKey) parts.push(e.metaKey ? 'Cmd' : 'Ctrl')
+                    if (e.altKey) parts.push('Alt')
+                    if (e.shiftKey) parts.push('Shift')
+
+                    // Map special keys
+                    let key = e.key
+                    if (key === ' ') key = 'Space'
+                    else if (key.length === 1) key = key.toUpperCase()
+                    else if (key === 'Escape') {
+                      // Cancel recording
+                      setIsRecordingShortcut(false)
+                      return
+                    }
+
+                    parts.push(key)
+                    const shortcut = parts.join('+')
+
+                    setVoiceShortcut(shortcut)
+                    localStorage.setItem('athena-voice-shortcut', shortcut)
+                    setIsRecordingShortcut(false)
+                    // Dispatch event so VoiceCommandButton picks it up
+                    window.dispatchEvent(new CustomEvent('athena-shortcut-changed', { detail: shortcut }))
+                  }}
+                  onBlur={() => setIsRecordingShortcut(false)}
+                  className={`
+                    flex items-center justify-center min-w-[200px] h-12 rounded-lg border-2 px-4 text-sm font-mono transition
+                    ${isRecordingShortcut
+                      ? 'border-[#6366F1] bg-[#6366F1]/10 text-[#F1F1F3] animate-pulse'
+                      : 'border-[#2D2D3A] bg-[#0F0F14] text-[#F1F1F3] hover:border-[#6366F1]/50'
+                    }
+                  `}
+                >
+                  {isRecordingShortcut ? (
+                    <span className="text-[#818CF8]">Press keys...</span>
+                  ) : (
+                    <span>{voiceShortcut.split('+').map((k, i) => (
+                      <span key={i}>
+                        {i > 0 && <span className="text-[#6B7280] mx-1">+</span>}
+                        <kbd className="inline-flex items-center justify-center min-w-[24px] px-1.5 py-0.5 rounded bg-[#2D2D3A] text-xs font-semibold text-[#F1F1F3]">
+                          {k}
+                        </kbd>
+                      </span>
+                    ))}</span>
+                  )}
+                </button>
+                <button
+                  onClick={() => {
+                    const defaultShortcut = 'Ctrl+Shift+V'
+                    setVoiceShortcut(defaultShortcut)
+                    localStorage.setItem('athena-voice-shortcut', defaultShortcut)
+                    window.dispatchEvent(new CustomEvent('athena-shortcut-changed', { detail: defaultShortcut }))
+                  }}
+                  className="rounded-lg px-3 py-2 text-xs text-[#6B7280] hover:text-[#F1F1F3] hover:bg-[#2D2D3A] transition"
+                >
+                  Reset to default
+                </button>
+              </div>
+            </div>
+            <div className="rounded-lg bg-[#0F0F14] border border-[#2D2D3A] p-3">
+              <p className="text-xs text-[#6B7280]">
+                <strong className="text-[#9CA3AF]">Tip:</strong> You can also click the floating mic button in the bottom-right corner.
+                Popular choices: <kbd className="px-1 py-0.5 bg-[#2D2D3A] rounded text-[10px]">Cmd+Space</kbd>,{' '}
+                <kbd className="px-1 py-0.5 bg-[#2D2D3A] rounded text-[10px]">Ctrl+Shift+V</kbd>,{' '}
+                <kbd className="px-1 py-0.5 bg-[#2D2D3A] rounded text-[10px]">Alt+V</kbd>
+              </p>
+            </div>
           </div>
         </SettingsSection>
 

@@ -258,10 +258,45 @@ export function VoiceCommandButton() {
     }
   }, [state, startListening, stopListening])
 
-  // Keyboard shortcut: Ctrl+Shift+V
+  // Customizable keyboard shortcut
+  const [shortcutLabel, setShortcutLabel] = useState('Ctrl+Shift+V')
+
   useEffect(() => {
+    const saved = localStorage.getItem('athena-voice-shortcut')
+    if (saved) setShortcutLabel(saved)
+
+    const handleShortcutChange = (e: Event) => {
+      const detail = (e as CustomEvent).detail as string
+      setShortcutLabel(detail)
+    }
+    window.addEventListener('athena-shortcut-changed', handleShortcutChange)
+    return () => window.removeEventListener('athena-shortcut-changed', handleShortcutChange)
+  }, [])
+
+  useEffect(() => {
+    function matchesShortcut(e: KeyboardEvent): boolean {
+      const parts = shortcutLabel.split('+')
+      const key = parts[parts.length - 1]
+      const needsCtrl = parts.includes('Ctrl')
+      const needsCmd = parts.includes('Cmd')
+      const needsShift = parts.includes('Shift')
+      const needsAlt = parts.includes('Alt')
+
+      if (needsCtrl && !e.ctrlKey) return false
+      if (needsCmd && !e.metaKey) return false
+      if (needsShift && !e.shiftKey) return false
+      if (needsAlt && !e.altKey) return false
+      if (!needsCtrl && !needsCmd && (e.ctrlKey || e.metaKey)) return false
+      if (!needsShift && e.shiftKey) return false
+      if (!needsAlt && e.altKey) return false
+
+      // Compare the actual key
+      const pressedKey = e.key === ' ' ? 'Space' : e.key.length === 1 ? e.key.toUpperCase() : e.key
+      return pressedKey === key
+    }
+
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.ctrlKey && e.shiftKey && e.key === 'V') {
+      if (matchesShortcut(e)) {
         e.preventDefault()
         handleButtonClick()
       }
@@ -271,7 +306,7 @@ export function VoiceCommandButton() {
     }
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [handleButtonClick, showPanel, closePanel])
+  }, [handleButtonClick, showPanel, closePanel, shortcutLabel])
 
   if (!supported) return null
 
@@ -296,7 +331,7 @@ export function VoiceCommandButton() {
             : 'bg-indigo-600 hover:bg-indigo-500 hover:scale-105 active:scale-95'
           }
         `}
-        title="Voice Command (Ctrl+Shift+V)"
+        title={`Voice Command (${shortcutLabel})`}
         aria-label="Voice command"
       >
         {state === 'listening' ? (
@@ -459,7 +494,7 @@ export function VoiceCommandButton() {
                 <div className="text-center py-4">
                   <Volume2 className="w-8 h-8 text-white/20 mx-auto mb-3" />
                   <p className="text-white/40 text-sm">
-                    Click the mic button or press <kbd className="px-1.5 py-0.5 bg-white/5 rounded text-[10px] font-mono">Ctrl+Shift+V</kbd> to start
+                    Click the mic button or press <kbd className="px-1.5 py-0.5 bg-white/5 rounded text-[10px] font-mono">{shortcutLabel}</kbd> to start
                   </p>
                   <p className="text-white/25 text-xs mt-2">
                     Try: &ldquo;Add a task to review PRs&rdquo; or &ldquo;New idea: mobile app redesign&rdquo;
